@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import Pagination from "@/components/admin/Pagination";
 import QRScanner from "@/components/admin/QRScanner";
 import AddProductModal from "@/components/admin/AddProductModal";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface Product {
   id: string;
@@ -17,6 +18,7 @@ interface Product {
 }
 
 export default function ProductsPage() {
+  const { t } = useLanguage();
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
@@ -94,7 +96,7 @@ export default function ProductsPage() {
   return (
     <div>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Products</h1>
+        <h1 className="text-3xl font-bold text-gray-900">{t("products.title")}</h1>
         <motion.button
           onClick={() => setIsAddProductModalOpen(true)}
           whileHover={{ scale: 1.05 }}

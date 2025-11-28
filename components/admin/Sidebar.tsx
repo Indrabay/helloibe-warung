@@ -2,24 +2,36 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Package, Settings, Warehouse, Menu, ShoppingCart, Receipt } from "lucide-react";
+import { LayoutDashboard, Package, Settings, Warehouse, Menu, ShoppingCart, Receipt, Store, UserPlus, Shield } from "lucide-react";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
+import { isSuperAdmin, getRoleName } from "@/lib/roles";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 const menuItems = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/dashboard/products", label: "Products", icon: Package },
-  { href: "/dashboard/inventory", label: "Inventory", icon: Warehouse },
-  { href: "/dashboard/cashier", label: "Cashier", icon: ShoppingCart },
-  { href: "/dashboard/orders", label: "Orders", icon: Receipt },
-  { href: "/dashboard/settings", label: "Settings", icon: Settings },
+  { href: "/dashboard", labelKey: "nav.dashboard", icon: LayoutDashboard },
+  { href: "/dashboard/products", labelKey: "nav.products", icon: Package },
+  { href: "/dashboard/inventory", labelKey: "nav.inventory", icon: Warehouse },
+  { href: "/dashboard/cashier", labelKey: "nav.cashier", icon: ShoppingCart },
+  { href: "/dashboard/orders", labelKey: "nav.orders", icon: Receipt },
+  { href: "/dashboard/settings", labelKey: "nav.settings", icon: Settings },
+];
+
+const superAdminMenuItems = [
+  { href: "/dashboard/stores", labelKey: "nav.stores", icon: Store },
+  { href: "/dashboard/users", labelKey: "nav.users", icon: UserPlus },
+  { href: "/dashboard/roles", labelKey: "nav.roles", icon: Shield },
 ];
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { user } = useAuth();
+  const { t } = useLanguage();
   const [isOpen, setIsOpen] = useState(true); // Start as open (for desktop)
   const [isDesktop, setIsDesktop] = useState(true); // Assume desktop initially
+  const userIsSuperAdmin = isSuperAdmin(user?.role);
 
   useEffect(() => {
     const checkDesktop = () => {
@@ -85,7 +97,7 @@ export default function Sidebar() {
             transition={{ delay: 0.1 }}
             className="flex items-center justify-between h-16 px-6 border-b border-gray-800"
           >
-            <h1 className="text-xl font-bold">helloibe.me warung</h1>
+            <h1 className="text-xl font-bold">{user?.store?.name || "helloibe.me warung"}</h1>
             <button
               className="lg:hidden"
               onClick={() => setIsOpen(false)}
@@ -94,7 +106,7 @@ export default function Sidebar() {
             </button>
           </motion.div>
           
-          <nav className="flex-1 px-4 py-6 space-y-2">
+          <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
             {menuItems.map((item, index) => {
               const Icon = item.icon;
               // Special handling for dashboard - exact match only
@@ -125,11 +137,54 @@ export default function Sidebar() {
                     >
                       <Icon className="mr-3 h-5 w-5" />
                     </motion.div>
-                    <span>{item.label}</span>
+                    <span>{t(item.labelKey)}</span>
                   </Link>
                 </motion.div>
               );
             })}
+            
+            {/* Super Admin Menu Items */}
+            {userIsSuperAdmin && (
+              <>
+                <div className="pt-4 pb-2">
+                  <div className="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    Super Admin
+                  </div>
+                </div>
+                {superAdminMenuItems.map((item, index) => {
+                  const Icon = item.icon;
+                  const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+                  
+                  return (
+                    <motion.div
+                      key={item.href}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.2 + (menuItems.length + index) * 0.05 }}
+                    >
+                      <Link
+                        href={item.href}
+                        className={cn(
+                          "flex items-center px-4 py-3 rounded-lg transition-all duration-200",
+                          isActive
+                            ? "bg-purple-600 text-white shadow-lg"
+                            : "text-gray-300 hover:bg-gray-800 hover:text-white"
+                        )}
+                        onClick={() => setIsOpen(false)}
+                      >
+                        <motion.div
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.95 }}
+                        >
+                          <Icon className="mr-3 h-5 w-5" />
+                        </motion.div>
+                        <span>{t(item.labelKey)}</span>
+                      </Link>
+                    </motion.div>
+                  );
+                })}
+              </>
+            )}
           </nav>
           
           <motion.div
@@ -140,8 +195,11 @@ export default function Sidebar() {
           >
             <div className="flex items-center px-4 py-2">
               <div className="flex-1">
-                <p className="text-sm font-medium">Admin User</p>
-                <p className="text-xs text-gray-400">admin@example.com</p>
+                <p className="text-sm font-medium">{user?.name || "Admin User"}</p>
+                <p className="text-xs text-gray-400">{user?.email || "admin@example.com"}</p>
+                {user?.role && getRoleName(user.role) && (
+                  <p className="text-xs text-purple-400 mt-1 capitalize">{getRoleName(user.role)?.replace("_", " ")}</p>
+                )}
               </div>
             </div>
           </motion.div>

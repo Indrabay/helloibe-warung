@@ -1,4 +1,5 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface PaginationProps {
   currentPage: number;
@@ -15,6 +16,7 @@ export default function Pagination({
   itemsPerPage,
   totalItems,
 }: PaginationProps) {
+  const { t } = useLanguage();
   const startItem = (currentPage - 1) * itemsPerPage + 1;
   const endItem = Math.min(currentPage * itemsPerPage, totalItems);
 
@@ -53,9 +55,8 @@ export default function Pagination({
     return pages;
   };
 
-  if (totalPages <= 1) {
-    return null;
-  }
+  // Always show pagination if there are items, even if only one page
+  // This ensures users can see the total count and current page info
 
   return (
     <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
@@ -65,22 +66,26 @@ export default function Pagination({
           disabled={currentPage === 1}
           className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Previous
+          {t("common.previous")}
         </button>
         <button
           onClick={() => onPageChange(currentPage + 1)}
           disabled={currentPage === totalPages}
           className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Next
+          {t("common.next")}
         </button>
       </div>
       <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
         <div>
           <p className="text-sm text-gray-700">
-            Showing <span className="font-medium">{startItem}</span> to{" "}
-            <span className="font-medium">{endItem}</span> of{" "}
-            <span className="font-medium">{totalItems}</span> results
+            {t("pagination.showing")} <span className="font-medium">{startItem}</span> {t("pagination.to")}{" "}
+            <span className="font-medium">{endItem}</span> {t("pagination.of")}{" "}
+            <span className="font-medium">{totalItems}</span> {t("pagination.results")}
+          </p>
+          <p className="text-xs text-gray-500 mt-1">
+            {t("pagination.page")} <span className="font-semibold text-blue-600">{currentPage}</span> {t("pagination.of")}{" "}
+            <span className="font-semibold">{totalPages}</span>
           </p>
         </div>
         <div>
@@ -88,9 +93,11 @@ export default function Pagination({
             <button
               onClick={() => onPageChange(currentPage - 1)}
               disabled={currentPage === 1}
-              className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="relative inline-flex items-center px-3 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              title={t("common.previous")}
             >
-              <ChevronLeft className="h-5 w-5" />
+              <ChevronLeft className="h-4 w-4 mr-1" />
+              <span>{t("common.previous")}</span>
             </button>
             {getPageNumbers().map((page, index) => {
               if (page === "ellipsis") {
@@ -122,9 +129,11 @@ export default function Pagination({
             <button
               onClick={() => onPageChange(currentPage + 1)}
               disabled={currentPage === totalPages}
-              className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="relative inline-flex items-center px-3 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              title={t("common.next")}
             >
-              <ChevronRight className="h-5 w-5" />
+              <span className="mr-1">{t("common.next")}</span>
+              <ChevronRight className="h-4 w-4" />
             </button>
           </nav>
         </div>

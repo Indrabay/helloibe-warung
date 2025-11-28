@@ -1,13 +1,18 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import { Eye, Search } from "lucide-react";
 import { getOrders, type Order } from "@/lib/orders";
+import Pagination from "@/components/admin/Pagination";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 export default function OrdersPage() {
+  const { t } = useLanguage();
   const [orders, setOrders] = useState<Order[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   useEffect(() => {
     // Load orders from localStorage
@@ -30,15 +35,26 @@ export default function OrdersPage() {
     };
   }, []);
 
-  const filteredOrders = orders.filter((order) => {
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
-    return (
-      order.orderNumber.toLowerCase().includes(query) ||
-      order.customerName?.toLowerCase().includes(query) ||
-      order.items.some((item) => item.name.toLowerCase().includes(query))
-    );
-  });
+  const filteredOrders = useMemo(() => {
+    return orders.filter((order) => {
+      if (!searchQuery) return true;
+      const query = searchQuery.toLowerCase();
+      return (
+        order.orderNumber.toLowerCase().includes(query) ||
+        order.customerName?.toLowerCase().includes(query) ||
+        order.items.some((item) => item.name.toLowerCase().includes(query))
+      );
+    });
+  }, [orders, searchQuery]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
+
+  const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedOrders = filteredOrders.slice(startIndex, endIndex);
 
   const getStatusBadge = (status: Order["status"]) => {
     const styles = {
@@ -70,7 +86,7 @@ export default function OrdersPage() {
   return (
     <div>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Orders</h1>
+        <h1 className="text-3xl font-bold text-gray-900">{t("orders.title")}</h1>
       </div>
 
       {/* Search Section */}
@@ -131,7 +147,7 @@ export default function OrdersPage() {
                   </td>
                 </tr>
               ) : (
-                filteredOrders.map((order, index) => (
+                paginatedOrders.map((order, index) => (
                   <motion.tr
                     key={order.id}
                     initial={{ opacity: 0, x: -20 }}
@@ -186,6 +202,15 @@ export default function OrdersPage() {
             </tbody>
           </table>
         </div>
+        {filteredOrders.length > 0 && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+            itemsPerPage={itemsPerPage}
+            totalItems={filteredOrders.length}
+          />
+        )}
       </div>
     </div>
   );

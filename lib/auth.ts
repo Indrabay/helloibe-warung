@@ -1,43 +1,76 @@
-export interface User {
+export interface Role {
   id: string;
-  email: string;
+  level: number;
   name: string;
 }
 
-// Mock user database
-const mockUsers: User[] = [
-  {
-    id: "1",
-    email: "admin@example.com",
-    name: "Admin User",
-  },
-];
+export interface Store {
+  id: string;
+  name: string;
+}
 
-// Mock session storage (in a real app, use cookies or server-side session)
-let currentSession: { user: User } | null = null;
+export interface User {
+  id: string;
+  username: string;
+  email: string;
+  name: string;
+  role: Role;
+  store: Store;
+}
+
+interface LoginResponse {
+  token: string;
+  user: User;
+}
+
+interface LoginError {
+  error: string;
+}
+
+// Session storage (in a real app, use cookies or server-side session)
+let currentSession: { user: User; token?: string } | null = null;
+
+// Backend API base URL
+// Set NEXT_PUBLIC_API_URL in .env.local to override (e.g., NEXT_PUBLIC_API_URL=http://localhost:3001)
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
 export const mockAuth = {
   /**
-   * Authenticate user with email and password
+   * Authenticate user with email and password via API
    */
   async signIn(email: string, password: string): Promise<{ user: User } | null> {
-    // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ usernameOrEmail: email, password }),
+      });
 
-    // Mock authentication logic
-    if (email === "admin@example.com" && password === "admin123") {
-      const user = mockUsers.find((u) => u.email === email);
-      if (user) {
-        currentSession = { user };
+      const data: LoginResponse | LoginError = await response.json();
+
+      if (response.ok && "token" in data && "user" in data) {
+        const { user, token } = data as LoginResponse;
+        currentSession = { user, token };
         // Store in localStorage for persistence
         if (typeof window !== "undefined") {
           localStorage.setItem("auth_session", JSON.stringify(currentSession));
+          localStorage.setItem("auth_token", token);
         }
         return { user };
       }
-    }
 
-    return null;
+      // Handle error response
+      if ("error" in data) {
+        console.error("Login error:", data.error);
+      }
+
+      return null;
+    } catch (error) {
+      console.error("Login request failed:", error);
+      return null;
+    }
   },
 
   /**
@@ -47,13 +80,14 @@ export const mockAuth = {
     currentSession = null;
     if (typeof window !== "undefined") {
       localStorage.removeItem("auth_session");
+      localStorage.removeItem("auth_token");
     }
   },
 
   /**
    * Get the current session
    */
-  getSession(): { user: User } | null {
+  getSession(): { user: User; token?: string } | null {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem("auth_session");
       if (stored) {

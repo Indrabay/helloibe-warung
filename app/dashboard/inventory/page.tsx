@@ -4,80 +4,32 @@ import { Package, AlertCircle, CheckCircle, Search, Calendar, XCircle, Box } fro
 import { useState, useMemo, useEffect } from "react";
 import { motion } from "framer-motion";
 import Pagination from "@/components/admin/Pagination";
-
-interface InventoryItem {
-  id: string;
-  sku: string;
-  name: string;
-  quantity: number;
-  expiry_date: string;
-  location: string;
-}
+import { getInventory, type InventoryItem } from "@/lib/inventory";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 export default function InventoryPage() {
+  const { t } = useLanguage();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
+  const [allInventoryItems, setAllInventoryItems] = useState<InventoryItem[]>([]);
   const itemsPerPage = 10;
 
-  const allInventoryItems: InventoryItem[] = [
-    {
-      id: "1",
-      sku: "NG-001",
-      name: "Nasi Goreng",
-      quantity: 45,
-      expiry_date: "2024-02-15",
-      location: "Aisle 1, Shelf A",
-    },
-    {
-      id: "2",
-      sku: "MA-001",
-      name: "Mie Ayam",
-      quantity: 32,
-      expiry_date: "2024-02-20",
-      location: "Aisle 1, Shelf B",
-    },
-    {
-      id: "3",
-      sku: "ETM-001",
-      name: "Es Teh Manis",
-      quantity: 15,
-      expiry_date: "2024-01-25",
-      location: "Aisle 2, Shelf C",
-    },
-    {
-      id: "4",
-      sku: "EJ-001",
-      name: "Es Jeruk",
-      quantity: 8,
-      expiry_date: "2024-01-22",
-      location: "Aisle 2, Shelf C",
-    },
-    {
-      id: "5",
-      sku: "AG-001",
-      name: "Ayam Goreng",
-      quantity: 28,
-      expiry_date: "2024-02-10",
-      location: "Aisle 1, Shelf A",
-    },
-    {
-      id: "6",
-      sku: "NG-002",
-      name: "Nasi Goreng",
-      quantity: 0,
-      expiry_date: "2024-01-10",
-      location: "Aisle 1, Shelf A",
-    },
-    {
-      id: "7",
-      sku: "SG-001",
-      name: "Sate Ayam",
-      quantity: 12,
-      expiry_date: "2024-01-18",
-      location: "Aisle 3, Shelf D",
-    },
-  ];
+  // Load inventory from localStorage
+  useEffect(() => {
+    const inventory = getInventory();
+    setAllInventoryItems(inventory);
+  }, []);
+
+  // Refresh inventory when window gains focus (to reflect changes from other tabs/pages)
+  useEffect(() => {
+    const handleFocus = () => {
+      const inventory = getInventory();
+      setAllInventoryItems(inventory);
+    };
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
+  }, []);
 
   const getExpiryStatus = (expiryDate: string) => {
     const today = new Date();
@@ -170,10 +122,10 @@ export default function InventoryPage() {
   return (
     <div>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Inventory</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">{t("inventory.title")}</h1>
         <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm">
           <Package className="h-4 w-4" />
-          Add Stock
+          {t("inventory.addStock")}
         </button>
       </div>
 

@@ -5,23 +5,30 @@ import { motion } from "framer-motion";
 import DashboardStatsCard from "@/components/admin/DashboardStatsCard";
 import { Package, AlertTriangle, XCircle, Box, DollarSign, TrendingUp, Award } from "lucide-react";
 import { getOrders, type Order } from "@/lib/orders";
+import { getInventory, type InventoryItem } from "@/lib/inventory";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 export default function DashboardPage() {
+  const { t } = useLanguage();
   const [orders, setOrders] = useState<Order[]>([]);
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
 
   useEffect(() => {
-    // Load orders from localStorage
+    // Load orders and inventory from localStorage
     setOrders(getOrders());
+    setInventory(getInventory());
     
     // Listen for storage changes
     const handleStorageChange = () => {
       setOrders(getOrders());
+      setInventory(getInventory());
     };
     
     window.addEventListener("storage", handleStorageChange);
     // Also check periodically for changes
     const interval = setInterval(() => {
       setOrders(getOrders());
+      setInventory(getInventory());
     }, 1000);
 
     return () => {
@@ -70,78 +77,104 @@ export default function DashboardPage() {
     };
   }, [orders]);
 
-  // Mock data for other stats - replace with actual data from your backend
-  const dashboardData = {
-    totalProducts: 45,
-    nearExpiryDate: 8,
-    passExpiryDate: 3,
-    emptyStock: 5,
-  };
+  // Calculate inventory stats from actual inventory data
+  const dashboardData = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    let nearExpiryCount = 0;
+    let expiredCount = 0;
+    let emptyStockCount = 0;
+    
+    inventory.forEach((item) => {
+      const expiry = new Date(item.expiry_date);
+      expiry.setHours(0, 0, 0, 0);
+      const diffTime = expiry.getTime() - today.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      if (diffDays < 0) {
+        expiredCount++;
+      } else if (diffDays <= 7) {
+        nearExpiryCount++;
+      }
+      
+      if (item.quantity === 0) {
+        emptyStockCount++;
+      }
+    });
+    
+    return {
+      totalProducts: inventory.length,
+      nearExpiryDate: nearExpiryCount,
+      passExpiryDate: expiredCount,
+      emptyStock: emptyStockCount,
+    };
+  }, [inventory]);
 
   const stats = [
     {
-      title: "Total Revenue",
+      title: t("dashboard.totalRevenue"),
       value: `Rp ${revenueData.total.toLocaleString("id-ID")}`,
       icon: DollarSign,
       iconColor: "text-green-600",
       iconBgColor: "bg-green-100",
-      description: `${revenueData.orderCount} orders`,
+      description: `${revenueData.orderCount} ${t("dashboard.orders")}`,
     },
     {
-      title: "Today's Revenue",
+      title: t("dashboard.todayRevenue"),
       value: `Rp ${revenueData.today.toLocaleString("id-ID")}`,
       icon: TrendingUp,
       iconColor: "text-blue-600",
       iconBgColor: "bg-blue-100",
-      description: "Revenue from today",
+      description: t("dashboard.revenueFromToday"),
     },
     {
-      title: "This Week",
+      title: t("dashboard.thisWeek"),
       value: `Rp ${revenueData.week.toLocaleString("id-ID")}`,
       icon: TrendingUp,
       iconColor: "text-purple-600",
       iconBgColor: "bg-purple-100",
-      description: "Revenue this week",
+      description: t("dashboard.revenueThisWeek"),
     },
     {
-      title: "This Month",
+      title: t("dashboard.thisMonth"),
       value: `Rp ${revenueData.month.toLocaleString("id-ID")}`,
       icon: TrendingUp,
       iconColor: "text-indigo-600",
       iconBgColor: "bg-indigo-100",
-      description: "Revenue this month",
+      description: t("dashboard.revenueThisMonth"),
     },
     {
-      title: "Total Product",
+      title: t("dashboard.totalProducts"),
       value: dashboardData.totalProducts,
       icon: Package,
       iconColor: "text-blue-600",
       iconBgColor: "bg-blue-100",
-      description: "All products in inventory",
+      description: t("dashboard.allProducts"),
     },
     {
-      title: "Near Expiry Date",
+      title: t("dashboard.nearExpiry"),
       value: dashboardData.nearExpiryDate,
       icon: AlertTriangle,
       iconColor: "text-yellow-600",
       iconBgColor: "bg-yellow-100",
-      description: "Products expiring within 7 days",
+      description: t("dashboard.expiringWithin7Days"),
     },
     {
-      title: "Pass Expiry Date",
+      title: t("dashboard.pastExpiry"),
       value: dashboardData.passExpiryDate,
       icon: XCircle,
       iconColor: "text-red-600",
       iconBgColor: "bg-red-100",
-      description: "Products past expiration date",
+      description: t("dashboard.pastExpiration"),
     },
     {
-      title: "Empty Stock",
+      title: t("dashboard.emptyStock"),
       value: dashboardData.emptyStock,
       icon: Box,
       iconColor: "text-gray-600",
       iconBgColor: "bg-gray-100",
-      description: "Products with zero stock",
+      description: t("dashboard.zeroStock"),
     },
   ];
 
@@ -189,7 +222,7 @@ export default function DashboardPage() {
         transition={{ delay: 0.1 }}
         className="text-2xl sm:text-3xl font-bold text-gray-900 mb-6"
       >
-        Dashboard
+        {t("dashboard.title")}
       </motion.h1>
       
       {/* Revenue Stats */}
@@ -199,7 +232,7 @@ export default function DashboardPage() {
         transition={{ duration: 0.4 }}
         className="mb-6"
       >
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Revenue Overview</h2>
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">{t("dashboard.revenueOverview")}</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
           {stats.slice(0, 4).map((stat, index) => (
             <DashboardStatsCard key={index} {...stat} index={index} />
@@ -214,7 +247,7 @@ export default function DashboardPage() {
         transition={{ duration: 0.4, delay: 0.2 }}
         className="mb-8"
       >
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Inventory Overview</h2>
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">{t("dashboard.inventoryOverview")}</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
           {stats.slice(4).map((stat, index) => (
             <DashboardStatsCard key={index + 4} {...stat} index={index + 4} />
@@ -230,25 +263,25 @@ export default function DashboardPage() {
           transition={{ duration: 0.4, delay: 0.3 }}
           className="bg-white rounded-lg shadow p-6 mb-6"
         >
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Recent Orders</h2>
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">{t("dashboard.recentOrders")}</h2>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Order Number
+                    {t("dashboard.orderNumber")}
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Customer
+                    {t("dashboard.customer")}
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Items
+                    {t("dashboard.items")}
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Total
+                    {t("dashboard.total")}
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Date
+                    {t("dashboard.date")}
                   </th>
                 </tr>
               </thead>
@@ -301,26 +334,26 @@ export default function DashboardPage() {
         <div className="bg-white rounded-lg shadow p-6 mb-6">
           <div className="flex items-center gap-2 mb-4">
             <Award className="h-6 w-6 text-yellow-600" />
-            <h2 className="text-xl font-semibold text-gray-900">Most Sales SKU</h2>
+            <h2 className="text-xl font-semibold text-gray-900">{t("dashboard.mostSalesSku")}</h2>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Rank
+                    {t("dashboard.rank")}
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    SKU
+                    {t("dashboard.sku")}
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Product Name
+                    {t("dashboard.productName")}
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Quantity Sold
+                    {t("dashboard.quantitySold")}
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Revenue
+                    {t("dashboard.revenue")}
                   </th>
                 </tr>
               </thead>
@@ -375,7 +408,7 @@ export default function DashboardPage() {
         {/* Products Near Expiry */}
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">
-            Products Near Expiry Date
+            {t("dashboard.productsNearExpiry")}
           </h2>
           <div className="space-y-3">
             <div className="flex justify-between items-center p-3 bg-yellow-50 rounded-lg border border-yellow-200">
@@ -411,7 +444,7 @@ export default function DashboardPage() {
         {/* Products Pass Expiry */}
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">
-            Products Pass Expiry Date
+            {t("dashboard.productsPassExpiry")}
           </h2>
           <div className="space-y-3">
             <div className="flex justify-between items-center p-3 bg-red-50 rounded-lg border border-red-200">
@@ -447,7 +480,7 @@ export default function DashboardPage() {
 
       {/* Empty Stock Section */}
       <div className="mt-6 bg-white rounded-lg shadow p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Empty Stock Products</h2>
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">{t("dashboard.emptyStockProducts")}</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
             <p className="font-medium text-gray-900">Nasi Goreng</p>

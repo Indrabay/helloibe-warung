@@ -5,7 +5,9 @@ import { motion } from "framer-motion";
 import { Search, Plus, Minus, Trash2, ShoppingCart, QrCode } from "lucide-react";
 import QRScanner from "@/components/admin/QRScanner";
 import { createOrder, saveOrder, type OrderItem } from "@/lib/orders";
+import { deductInventoryFromOrder } from "@/lib/inventory";
 import { useRouter } from "next/navigation";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface CartItem {
   id: string;
@@ -24,6 +26,7 @@ interface Product {
 }
 
 export default function CashierPage() {
+  const { t } = useLanguage();
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -112,6 +115,20 @@ export default function CashierPage() {
       quantity: item.quantity,
     }));
 
+    // Deduct inventory before creating order
+    const inventoryDeducted = deductInventoryFromOrder(
+      orderItems.map((item) => ({ sku: item.sku, quantity: item.quantity }))
+    );
+
+    if (!inventoryDeducted) {
+      if (typeof window !== "undefined") {
+        window.alert(
+          "Checkout failed: Insufficient inventory for one or more items. Please check your inventory."
+        );
+      }
+      return;
+    }
+
     // Create and save order
     const order = createOrder(orderItems);
     saveOrder(order);
@@ -135,7 +152,7 @@ export default function CashierPage() {
       {/* Product Selection Panel */}
       <div className="lg:col-span-2">
         <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Product Selection</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">{t("cashier.productSelection")}</h2>
           
           {/* Search Bar */}
           <div className="relative flex items-center gap-2 mb-4">
@@ -188,7 +205,7 @@ export default function CashierPage() {
         <div className="bg-white rounded-lg shadow p-6 sticky top-4">
           <div className="flex items-center gap-2 mb-4">
             <ShoppingCart className="h-5 w-5 text-gray-600" />
-            <h2 className="text-xl font-bold text-gray-900">Cart</h2>
+            <h2 className="text-xl font-bold text-gray-900">{t("cashier.cart")}</h2>
             {cart.length > 0 && (
               <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold">
                 {cart.reduce((sum, item) => sum + item.quantity, 0)}
