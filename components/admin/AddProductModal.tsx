@@ -1,24 +1,37 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Upload, FileText, Plus } from "lucide-react";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 
+import { fetchCategories, type Category } from "@/lib/categories";
+import { useAuth } from "@/hooks/useAuth";
+import { isSuperAdmin } from "@/lib/roles";
+
+interface Store {
+  id: string;
+  name: string;
+  address?: string;
+  phone?: string;
+}
+
 interface Product {
   name: string;
-  category: string;
-  sku: string;
+  category_id: string;
+  sku?: string;
   selling_price: number;
   purchase_price: number;
+  store_id?: string;
 }
 
 interface AddProductModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAddProduct: (product: Product) => void;
-  onBulkAdd: (products: Product[]) => void;
+  onBulkAdd: (file: File) => void;
+  categories: Category[];
 }
 
 export default function AddProductModal({
@@ -26,30 +39,73 @@ export default function AddProductModal({
   onClose,
   onAddProduct,
   onBulkAdd,
+  categories,
 }: AddProductModalProps) {
+  const { user } = useAuth();
+  const userIsSuperAdmin = isSuperAdmin(user?.role);
   const [activeTab, setActiveTab] = useState<"single" | "bulk">("single");
   const [formData, setFormData] = useState({
     name: "",
-    category: "",
+    category_id: "",
     sku: "",
     selling_price: "",
     purchase_price: "",
+    store_id: "",
   });
+  const [stores, setStores] = useState<Store[]>([]);
+  const [isLoadingStores, setIsLoadingStores] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [preview, setPreview] = useState<Product[] | null>(null);
+  const [preview, setPreview] = useState<any[] | null>(null);
 
-  const handleSingleSubmit = (e: React.FormEvent) => {
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+
+  // Fetch stores if user is super_admin
+  useEffect(() => {
+    const fetchStores = async () => {
+      if (userIsSuperAdmin) {
+        try {
+          setIsLoadingStores(true);
+          const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
+          
+          const response = await fetch(`${API_BASE_URL}/api/stores?limit=100&offset=0`, {
+            headers: {
+              ...(token && { Authorization: `Bearer ${token}` }),
+            },
+          });
+
+          if (response.ok) {
+            const result = await response.json();
+            if (result.data && Array.isArray(result.data)) {
+              setStores(result.data);
+            } else if (Array.isArray(result)) {
+              setStores(result);
+            }
+          }
+        } catch (error) {
+          console.error("Error fetching stores:", error);
+        } finally {
+          setIsLoadingStores(false);
+        }
+      }
+    };
+
+    if (isOpen && userIsSuperAdmin) {
+      fetchStores();
+    }
+  }, [isOpen, userIsSuperAdmin, API_BASE_URL]);
+
+  const handleSingleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
     if (
       !formData.name ||
-      !formData.category ||
-      !formData.sku ||
+      !formData.category_id ||
       !formData.selling_price ||
-      !formData.purchase_price
+      !formData.purchase_price ||
+      (userIsSuperAdmin && !formData.store_id)
     ) {
       setError("Please fill in all required fields");
       return;
@@ -57,13 +113,14 @@ export default function AddProductModal({
 
     const product: Product = {
       name: formData.name,
-      category: formData.category,
-      sku: formData.sku,
+      category_id: formData.category_id,
+      ...(formData.sku && { sku: formData.sku }),
       selling_price: parseFloat(formData.selling_price),
       purchase_price: parseFloat(formData.purchase_price),
+      ...(userIsSuperAdmin && formData.store_id && { store_id: formData.store_id }),
     };
 
-    onAddProduct(product);
+    await onAddProduct(product);
     handleClose();
   };
 
@@ -122,15 +179,20 @@ export default function AddProductModal({
     reader.readAsBinaryString(file);
   };
 
-  const validateProducts = (data: any[]): Product[] => {
+  const validateProducts = (data: any[]): any[] => {
     if (!Array.isArray(data) || data.length === 0) {
       throw new Error("No data found in file");
     }
 
     return data.map((row, index) => {
       const name = row.name || row.Name || row.NAME || "";
-      const category = row.category || row.Category || row.CATEGORY || "";
+      const category_id = row.category_id || row.categoryId || row["category_id"] || row["Category ID"] || "";
+      // Also support category name for backward compatibility - try to find category_id by name
+      const categoryName = row.category || row.Category || row.CATEGORY || "";
       const sku = row.sku || row.SKU || row.Sku || "";
+      const store_id = row.store_id || row.storeId || row["store_id"] || row["Store ID"] || "";
+      // Also support store name for backward compatibility - try to find store_id by name
+      const storeName = row.store || row.Store || row.STORE || "";
       const selling_price =
         row.selling_price ||
         row["Selling Price"] ||
@@ -144,31 +206,76 @@ export default function AddProductModal({
         row["Purchase Price (Rp)"] ||
         0;
 
-      if (!name || !category || !sku) {
+      // Determine category_id - use provided ID or find by name
+      let finalCategoryId = category_id;
+      if (!finalCategoryId && categoryName) {
+        // Try to find category by name
+        const foundCategory = categories.find(
+          (cat) => cat.name.toLowerCase() === String(categoryName).toLowerCase()
+        );
+        if (foundCategory) {
+          finalCategoryId = foundCategory.id;
+        } else {
+          throw new Error(
+            `Row ${index + 2}: Category "${categoryName}" not found. Please use category_id or ensure the category name exists.`
+          );
+        }
+      }
+
+      // Determine store_id - use provided ID or find by name (only for super_admin)
+      let finalStoreId = store_id;
+      if (userIsSuperAdmin && !finalStoreId && storeName) {
+        // Try to find store by name
+        const foundStore = stores.find(
+          (s) => s.name.toLowerCase() === String(storeName).toLowerCase()
+        );
+        if (foundStore) {
+          finalStoreId = foundStore.id;
+        } else {
+          throw new Error(
+            `Row ${index + 2}: Store "${storeName}" not found. Please use store_id or ensure the store name exists.`
+          );
+        }
+      }
+
+      if (!name || !finalCategoryId) {
         throw new Error(
-          `Row ${index + 2}: Missing required fields (name, category, sku)`
+          `Row ${index + 2}: Missing required fields (name, category_id)`
         );
       }
 
+      if (userIsSuperAdmin && !finalStoreId) {
+        throw new Error(
+          `Row ${index + 2}: Missing required field (store_id) for super admin`
+        );
+      }
+
+      // Note: We don't validate category_id or store_id existence here because:
+      // 1. Categories/stores might not be fully loaded
+      // 2. IDs from CSV might be in different format than API IDs
+      // 3. Backend API will validate the IDs anyway
+
       return {
         name: String(name),
-        category: String(category),
-        sku: String(sku),
+        category_id: String(finalCategoryId),
+        ...(sku && { sku: String(sku) }),
         selling_price: parseFloat(String(selling_price)) || 0,
         purchase_price: parseFloat(String(purchase_price)) || 0,
+        ...(userIsSuperAdmin && finalStoreId && { store_id: String(finalStoreId) }),
       };
     });
   };
 
-  const handleBulkUpload = () => {
-    if (!preview || preview.length === 0) {
-      setError("No products to upload");
+  const handleBulkUpload = async () => {
+    if (!file) {
+      setError("No file selected");
       return;
     }
 
     setUploading(true);
+    setError(null);
     try {
-      onBulkAdd(preview);
+      await onBulkAdd(file);
       handleClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to upload products");
@@ -180,14 +287,16 @@ export default function AddProductModal({
   const handleClose = () => {
     setFormData({
       name: "",
-      category: "",
+      category_id: "",
       sku: "",
       selling_price: "",
       purchase_price: "",
+      store_id: "",
     });
     setFile(null);
     setPreview(null);
     setError(null);
+    setUploading(false);
     setActiveTab("single");
     onClose();
   };
@@ -272,29 +381,55 @@ export default function AddProductModal({
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Category <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="text"
+                <select
                   required
-                  value={formData.category}
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                  value={formData.category_id}
+                  onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="e.g., Main Course"
-                />
+                >
+                  <option value="">Select a category</option>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  SKU <span className="text-red-500">*</span>
+                  SKU
                 </label>
                 <input
                   type="text"
-                  required
                   value={formData.sku}
                   onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="e.g., NG-001"
+                  placeholder="e.g., NG-001 (optional)"
                 />
               </div>
+
+              {userIsSuperAdmin && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Store <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    required
+                    value={formData.store_id}
+                    onChange={(e) => setFormData({ ...formData, store_id: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    disabled={isLoadingStores}
+                  >
+                    <option value="">Select a store</option>
+                    {stores.map((store) => (
+                      <option key={store.id} value={store.id}>
+                        {store.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -379,8 +514,11 @@ export default function AddProductModal({
                       <p className="font-medium mb-2">CSV/XLSX columns:</p>
                       <ul className="list-disc list-inside space-y-1 text-gray-600">
                         <li><strong>name</strong> - Product name (required)</li>
-                        <li><strong>category</strong> - Product category (required)</li>
-                        <li><strong>sku</strong> - Product SKU (required)</li>
+                        <li><strong>category_id</strong> - Category ID (required) - You can also use <strong>category</strong> with category name for backward compatibility</li>
+                        {userIsSuperAdmin && (
+                          <li><strong>store_id</strong> - Store ID (required for super admin) - You can also use <strong>store</strong> with store name for backward compatibility</li>
+                        )}
+                        <li><strong>sku</strong> - Product SKU (optional)</li>
                         <li><strong>selling_price</strong> - Selling price in Rp (required)</li>
                         <li><strong>purchase_price</strong> - Purchase price in Rp (required)</li>
                       </ul>
@@ -405,6 +543,11 @@ export default function AddProductModal({
                             <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
                               Category
                             </th>
+                            {userIsSuperAdmin && (
+                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                Store
+                              </th>
+                            )}
                             <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
                               SKU
                             </th>
@@ -417,25 +560,38 @@ export default function AddProductModal({
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                          {preview.slice(0, 10).map((product, index) => (
-                            <tr key={index}>
-                              <td className="px-3 py-2 text-sm text-gray-900">
-                                {product.name}
-                              </td>
-                              <td className="px-3 py-2 text-sm text-gray-500">
-                                {product.category}
-                              </td>
-                              <td className="px-3 py-2 text-sm text-gray-900">
-                                {product.sku}
-                              </td>
-                              <td className="px-3 py-2 text-sm text-gray-900">
-                                Rp {product.selling_price.toLocaleString("id-ID")}
-                              </td>
-                              <td className="px-3 py-2 text-sm text-gray-600">
-                                Rp {product.purchase_price.toLocaleString("id-ID")}
-                              </td>
-                            </tr>
-                          ))}
+                          {preview.slice(0, 10).map((product, index) => {
+                            const categoryName = categories.find(
+                              (cat) => cat.id === product.category_id
+                            )?.name || product.category_id || "-";
+                            const storeName = userIsSuperAdmin
+                              ? stores.find((s) => s.id === product.store_id)?.name || product.store_id || "-"
+                              : null;
+                            return (
+                              <tr key={index}>
+                                <td className="px-3 py-2 text-sm text-gray-900">
+                                  {product.name}
+                                </td>
+                                <td className="px-3 py-2 text-sm text-gray-500">
+                                  {categoryName}
+                                </td>
+                                {userIsSuperAdmin && (
+                                  <td className="px-3 py-2 text-sm text-gray-500">
+                                    {storeName}
+                                  </td>
+                                )}
+                                <td className="px-3 py-2 text-sm text-gray-900">
+                                  {product.sku || "-"}
+                                </td>
+                                <td className="px-3 py-2 text-sm text-gray-900">
+                                  Rp {product.selling_price.toLocaleString("id-ID")}
+                                </td>
+                                <td className="px-3 py-2 text-sm text-gray-600">
+                                  Rp {product.purchase_price.toLocaleString("id-ID")}
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                       {preview.length > 10 && (
@@ -457,10 +613,10 @@ export default function AddProductModal({
                 </button>
                 <button
                   onClick={handleBulkUpload}
-                  disabled={!preview || preview.length === 0 || uploading}
+                  disabled={!file || uploading}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {uploading ? "Uploading..." : `Upload ${preview?.length || 0} Products`}
+                  {uploading ? "Uploading..." : `Upload File`}
                 </button>
               </div>
             </div>

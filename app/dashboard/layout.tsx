@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Sidebar from "@/components/admin/Sidebar";
 import Header from "@/components/admin/Header";
+import Breadcrumb from "@/components/admin/Breadcrumb";
 import { useAuth } from "@/hooks/useAuth";
 
 export default function DashboardLayout({
@@ -47,6 +48,7 @@ export default function DashboardLayout({
       <div className="flex-1 flex flex-col overflow-hidden lg:ml-0">
         <Header />
         <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50 p-4 sm:p-6">
+          <Breadcrumb />
           <AnimatePresence mode="wait">
             <motion.div
               initial={{ opacity: 0, y: 10 }}

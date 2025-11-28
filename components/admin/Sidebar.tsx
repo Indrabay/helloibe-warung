@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Package, Settings, Warehouse, Menu, ShoppingCart, Receipt, Store, UserPlus, Shield } from "lucide-react";
+import { LayoutDashboard, Package, Settings, Warehouse, Menu, ShoppingCart, Receipt, Store, UserPlus, Shield, FolderTree, ChevronDown, ChevronRight } from "lucide-react";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -31,6 +31,7 @@ export default function Sidebar() {
   const { t } = useLanguage();
   const [isOpen, setIsOpen] = useState(true); // Start as open (for desktop)
   const [isDesktop, setIsDesktop] = useState(true); // Assume desktop initially
+  const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({});
   const userIsSuperAdmin = isSuperAdmin(user?.role);
 
   useEffect(() => {
@@ -51,6 +52,30 @@ export default function Sidebar() {
       return () => window.removeEventListener("resize", checkDesktop);
     }
   }, []);
+
+  // Load expanded state from localStorage
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedState = localStorage.getItem("expanded_menus");
+      if (savedState) {
+        try {
+          setExpandedMenus(JSON.parse(savedState));
+        } catch (error) {
+          console.error("Error loading expanded menus:", error);
+        }
+      }
+    }
+  }, []);
+
+  const toggleMenu = (menuKey: string) => {
+    setExpandedMenus((prev) => {
+      const newState = { ...prev, [menuKey]: !prev[menuKey] };
+      if (typeof window !== "undefined") {
+        localStorage.setItem("expanded_menus", JSON.stringify(newState));
+      }
+      return newState;
+    });
+  };
 
   return (
     <>
@@ -114,32 +139,104 @@ export default function Sidebar() {
                 ? pathname === "/dashboard"
                 : pathname === item.href || pathname.startsWith(item.href + "/");
               
+              // Check if this is Products menu and has submenu
+              const isProductsMenu = item.href === "/dashboard/products";
+              const hasSubmenu = isProductsMenu;
+              const menuKey = item.href;
+              const isExpanded = expandedMenus[menuKey] ?? (isProductsMenu && isActive); // Default to expanded if active
+              
               return (
-                <motion.div
-                  key={item.href}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.2 + index * 0.05 }}
-                >
-                  <Link
-                    href={item.href}
-                    className={cn(
-                      "flex items-center px-4 py-3 rounded-lg transition-all duration-200",
-                      isActive
-                        ? "bg-blue-600 text-white shadow-lg"
-                        : "text-gray-300 hover:bg-gray-800 hover:text-white"
-                    )}
-                    onClick={() => setIsOpen(false)}
+                <div key={item.href}>
+                  <motion.div
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.2 + index * 0.05 }}
                   >
-                    <motion.div
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.95 }}
-                    >
-                      <Icon className="mr-3 h-5 w-5" />
-                    </motion.div>
-                    <span>{t(item.labelKey)}</span>
-                  </Link>
-                </motion.div>
+                    {hasSubmenu ? (
+                      <div
+                        className={cn(
+                          "flex items-center px-4 py-3 rounded-lg transition-all duration-200 cursor-pointer",
+                          isActive
+                            ? "bg-blue-600 text-white shadow-lg"
+                            : "text-gray-300 hover:bg-gray-800 hover:text-white"
+                        )}
+                        onClick={() => toggleMenu(menuKey)}
+                      >
+                        <motion.div
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.95 }}
+                        >
+                          <Icon className="mr-3 h-5 w-5" />
+                        </motion.div>
+                        <span className="flex-1">{t(item.labelKey)}</span>
+                        {isExpanded ? (
+                          <ChevronDown className="h-4 w-4 ml-2" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 ml-2" />
+                        )}
+                      </div>
+                    ) : (
+                      <Link
+                        href={item.href}
+                        className={cn(
+                          "flex items-center px-4 py-3 rounded-lg transition-all duration-200",
+                          isActive
+                            ? "bg-blue-600 text-white shadow-lg"
+                            : "text-gray-300 hover:bg-gray-800 hover:text-white"
+                        )}
+                        onClick={() => setIsOpen(false)}
+                      >
+                        <motion.div
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.95 }}
+                        >
+                          <Icon className="mr-3 h-5 w-5" />
+                        </motion.div>
+                        <span>{t(item.labelKey)}</span>
+                      </Link>
+                    )}
+                  </motion.div>
+                  
+                  {/* Submenu for Products */}
+                  <AnimatePresence>
+                    {hasSubmenu && isExpanded && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="ml-4 mt-1 space-y-1"
+                      >
+                        <Link
+                          href="/dashboard/products"
+                          className={cn(
+                            "flex items-center px-4 py-2 rounded-lg transition-all duration-200 text-sm",
+                            pathname === "/dashboard/products" && pathname !== "/dashboard/products/categories"
+                              ? "bg-blue-500 text-white"
+                              : "text-gray-400 hover:bg-gray-800 hover:text-white"
+                          )}
+                          onClick={() => setIsOpen(false)}
+                        >
+                          <Package className="mr-2 h-4 w-4" />
+                          <span>{t("nav.products")}</span>
+                        </Link>
+                        <Link
+                          href="/dashboard/products/categories"
+                          className={cn(
+                            "flex items-center px-4 py-2 rounded-lg transition-all duration-200 text-sm",
+                            pathname === "/dashboard/products/categories"
+                              ? "bg-blue-500 text-white"
+                              : "text-gray-400 hover:bg-gray-800 hover:text-white"
+                          )}
+                          onClick={() => setIsOpen(false)}
+                        >
+                          <FolderTree className="mr-2 h-4 w-4" />
+                          <span>{t("nav.categories")}</span>
+                        </Link>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               );
             })}
             

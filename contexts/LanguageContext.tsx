@@ -46,6 +46,7 @@ const translations: Record<Language, Record<string, string>> = {
     // Navigation
     "nav.dashboard": "Dashboard",
     "nav.products": "Products",
+    "nav.categories": "Categories",
     "nav.inventory": "Inventory",
     "nav.cashier": "Cashier",
     "nav.orders": "Orders",
@@ -96,11 +97,26 @@ const translations: Record<Language, Record<string, string>> = {
     "products.searchPlaceholder": "Search products by name, category, or SKU...",
     "products.scanQR": "Scan QR Code",
     "products.name": "Name",
+    "products.productName": "Product Name",
+    "products.detail": "Product Detail",
     "products.category": "Category",
     "products.sku": "SKU",
     "products.sellingPrice": "Selling Price",
     "products.purchasePrice": "Purchase Price",
     "products.noProducts": "No products found",
+    
+    // Categories
+    "categories.title": "Categories",
+    "categories.addCategory": "Add Category",
+    "categories.editCategory": "Edit Category",
+    "categories.name": "Name",
+    "categories.description": "Description",
+    "categories.searchPlaceholder": "Search categories by name or description...",
+    "categories.noCategories": "No categories found",
+    "categories.download": "Download All",
+    "categories.nameRequired": "Category name is required",
+    "categories.duplicateName": "A category with this name already exists",
+    "categories.confirmDelete": "Are you sure you want to delete this category?",
     
     // Inventory
     "inventory.title": "Inventory",
@@ -227,6 +243,7 @@ const translations: Record<Language, Record<string, string>> = {
     // Navigation
     "nav.dashboard": "Dasbor",
     "nav.products": "Produk",
+    "nav.categories": "Kategori",
     "nav.inventory": "Inventori",
     "nav.cashier": "Kasir",
     "nav.orders": "Pesanan",
@@ -277,11 +294,26 @@ const translations: Record<Language, Record<string, string>> = {
     "products.searchPlaceholder": "Cari produk berdasarkan nama, kategori, atau SKU...",
     "products.scanQR": "Pindai QR Code",
     "products.name": "Nama",
+    "products.productName": "Nama Produk",
+    "products.detail": "Detail Produk",
     "products.category": "Kategori",
     "products.sku": "SKU",
     "products.sellingPrice": "Harga Jual",
     "products.purchasePrice": "Harga Beli",
     "products.noProducts": "Tidak ada produk ditemukan",
+    
+    // Categories
+    "categories.title": "Kategori",
+    "categories.addCategory": "Tambah Kategori",
+    "categories.editCategory": "Edit Kategori",
+    "categories.name": "Nama",
+    "categories.description": "Deskripsi",
+    "categories.searchPlaceholder": "Cari kategori berdasarkan nama atau deskripsi...",
+    "categories.noCategories": "Tidak ada kategori ditemukan",
+    "categories.download": "Unduh Semua",
+    "categories.nameRequired": "Nama kategori wajib diisi",
+    "categories.duplicateName": "Kategori dengan nama ini sudah ada",
+    "categories.confirmDelete": "Apakah Anda yakin ingin menghapus kategori ini?",
     
     // Inventory
     "inventory.title": "Inventori",
