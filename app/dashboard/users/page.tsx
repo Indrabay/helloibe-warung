@@ -113,6 +113,11 @@ export default function UsersPage() {
     }
   };
 
+  const handleViewDetail = (user: User) => {
+    setSelectedUser(user);
+    setIsDetailModalOpen(true);
+  };
+
   const handleDelete = async (id: string) => {
     if (!window.confirm("Are you sure you want to delete this user?")) return;
 

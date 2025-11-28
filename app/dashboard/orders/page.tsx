@@ -3,58 +3,142 @@
 import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import { Eye, Search } from "lucide-react";
-import { getOrders, type Order } from "@/lib/orders";
+import { type Order } from "@/lib/orders";
 import Pagination from "@/components/admin/Pagination";
 import { useLanguage } from "@/contexts/LanguageContext";
+
+interface ApiOrderItem {
+  id: number;
+  product_id: string;
+  quantity: number;
+  total_price: string;
+  product: {
+    id: string;
+    name: string;
+    sku: string;
+    selling_price: string;
+  };
+}
+
+interface ApiOrder {
+  id: number;
+  invoice_number: string;
+  customer_name: string;
+  total_price: string;
+  store_id: string;
+  created_at: string;
+  created_by?: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  store?: {
+    id: string;
+    name: string;
+    store_code: string;
+  };
+  orderItems: ApiOrderItem[];
+}
 
 export default function OrdersPage() {
   const { t } = useLanguage();
   const [orders, setOrders] = useState<Order[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [isLoading, setIsLoading] = useState(true);
+  const [totalItems, setTotalItems] = useState(0);
   const itemsPerPage = 10;
 
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+
   useEffect(() => {
-    // Load orders from localStorage
-    setOrders(getOrders());
-    
-    // Listen for storage changes (when new orders are added from cashier)
-    const handleStorageChange = () => {
-      setOrders(getOrders());
-    };
-    
-    window.addEventListener("storage", handleStorageChange);
-    // Also check periodically for changes (since storage event only fires in other tabs)
-    const interval = setInterval(() => {
-      setOrders(getOrders());
-    }, 1000);
+    const fetchOrders = async () => {
+      try {
+        setIsLoading(true);
+        const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
 
-    return () => {
-      window.removeEventListener("storage", handleStorageChange);
-      clearInterval(interval);
-    };
-  }, []);
+        const params = new URLSearchParams({
+          limit: itemsPerPage.toString(),
+          offset: ((currentPage - 1) * itemsPerPage).toString(),
+        });
 
-  const filteredOrders = useMemo(() => {
-    return orders.filter((order) => {
-      if (!searchQuery) return true;
-      const query = searchQuery.toLowerCase();
-      return (
-        order.orderNumber.toLowerCase().includes(query) ||
-        order.customerName?.toLowerCase().includes(query) ||
-        order.items.some((item) => item.name.toLowerCase().includes(query))
-      );
-    });
-  }, [orders, searchQuery]);
+        // Add search parameter if search query exists
+        if (searchQuery.trim()) {
+          params.append("search", searchQuery.trim());
+        }
+
+        const response = await fetch(`${API_BASE_URL}/api/orders?${params.toString()}`, {
+          headers: {
+            ...(token && { Authorization: `Bearer ${token}` }),
+          },
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          
+          // Handle different response formats
+          let ordersData: ApiOrder[] = [];
+          let total = 0;
+          
+          if (result.data && Array.isArray(result.data)) {
+            ordersData = result.data;
+            total = result.total || result.data.length;
+          } else if (Array.isArray(result)) {
+            ordersData = result;
+            total = result.length;
+          } else if (result.orders && Array.isArray(result.orders)) {
+            ordersData = result.orders;
+            total = result.total || result.orders.length;
+          }
+
+          // Transform API response to match Order interface
+          const transformedOrders: Order[] = ordersData.map((order: ApiOrder) => {
+            // Ensure orderItems is an array
+            const orderItems = Array.isArray(order.orderItems) ? order.orderItems : [];
+            
+            return {
+              id: String(order.id),
+              orderNumber: order.invoice_number || `ORD-${order.id}`,
+              customerName: order.customer_name || "Walk-in Customer",
+              total: parseFloat(order.total_price) || 0,
+              status: "completed" as Order["status"], // Default to completed since API doesn't provide status
+              createdAt: order.created_at || new Date().toISOString(),
+              items: orderItems.map((item: ApiOrderItem) => ({
+                id: item.product?.id || item.product_id || "",
+                sku: item.product?.sku || "",
+                name: item.product?.name || "Unknown Product",
+                price: parseFloat(item.product?.selling_price) || parseFloat(item.total_price) / item.quantity || 0,
+                quantity: item.quantity || 0,
+              })),
+            };
+          });
+
+          setOrders(transformedOrders);
+          setTotalItems(total);
+        } else {
+          const errorData = await response.json().catch(() => ({}));
+          console.error("Failed to fetch orders:", response.status, errorData);
+          setOrders([]);
+          setTotalItems(0);
+        }
+      } catch (error) {
+        console.error("Error fetching orders:", error);
+        setOrders([]);
+        setTotalItems(0);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchOrders();
+  }, [currentPage, searchQuery, API_BASE_URL, itemsPerPage]);
 
   useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery]);
 
-  const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedOrders = filteredOrders.slice(startIndex, endIndex);
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const paginatedOrders = orders;
 
   const getStatusBadge = (status: Order["status"]) => {
     const styles = {
@@ -101,9 +185,9 @@ export default function OrdersPage() {
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
-        {searchQuery && (
+        {searchQuery && !isLoading && (
           <p className="text-sm text-gray-500 mt-3">
-            Found {filteredOrders.length} order{filteredOrders.length !== 1 ? "s" : ""}
+            Found {totalItems} order{totalItems !== 1 ? "s" : ""}
           </p>
         )}
       </div>
@@ -138,12 +222,21 @@ export default function OrdersPage() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredOrders.length === 0 ? (
+              {isLoading ? (
                 <tr>
                   <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
-                    {orders.length === 0
-                      ? "No orders yet. Start by creating an order from the Cashier page."
-                      : "No orders found matching your search."}
+                    <div className="flex items-center justify-center">
+                      <div className="w-6 h-6 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mr-3"></div>
+                      {t("common.loading") || "Loading..."}
+                    </div>
+                  </td>
+                </tr>
+              ) : paginatedOrders.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
+                    {searchQuery
+                      ? "No orders found matching your search."
+                      : "No orders yet. Start by creating an order from the Cashier page."}
                   </td>
                 </tr>
               ) : (
@@ -202,13 +295,13 @@ export default function OrdersPage() {
             </tbody>
           </table>
         </div>
-        {filteredOrders.length > 0 && (
+        {!isLoading && paginatedOrders.length > 0 && (
           <Pagination
             currentPage={currentPage}
             totalPages={totalPages}
             onPageChange={setCurrentPage}
             itemsPerPage={itemsPerPage}
-            totalItems={filteredOrders.length}
+            totalItems={totalItems}
           />
         )}
       </div>
